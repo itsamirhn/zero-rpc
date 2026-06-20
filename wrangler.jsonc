@@ -1,0 +1,15 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "zero-rpc",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-06-01",
+	"observability": {
+		"enabled": true
+	},
+	"kv_namespaces": [
+		{
+			"binding": "ROUTES",
+			"id": "4507502844e44643892c582e5acc5404"
+		}
+	]
+}
