@@ -22,12 +22,6 @@ export default {
       return new Response("ok", { headers: { "content-type": "text/plain" } });
     }
 
-    // CORS preflight carries no credentials, so it must pass without auth or
-    // browser RPC clients fail before the real (authenticated) request is sent.
-    if (req.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(req) });
-    }
-
     // Everything below is behind Cloudflare Access (Zero Trust). The Access app at
     // the edge gates who can reach the Worker at all; we just confirm its header is
     // present so a direct workers.dev hit without Access can't slip through.
@@ -48,17 +42,6 @@ export default {
     return proxy(req, env, url);
   },
 } satisfies ExportedHandler<Env>;
-
-function corsHeaders(req: Request): Record<string, string> {
-  const requested = req.headers.get("Access-Control-Request-Headers");
-  return {
-    "Access-Control-Allow-Origin": req.headers.get("Origin") ?? "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": requested ?? "content-type",
-    "Access-Control-Max-Age": "86400",
-    "Vary": "Origin",
-  };
-}
 
 function requireAccess(req: Request, url: URL): Response | null {
   // Local dev (wrangler dev) has no Access edge to inject the header, so the admin
@@ -109,6 +92,8 @@ async function proxy(req: Request, env: Env, url: URL): Promise<Response> {
   const out = new Response(resp.body, resp);
   out.headers.delete("content-encoding");
   out.headers.delete("content-length");
+  // Cloudflare Access answers the CORS preflight; the origin must still mark the
+  // actual response as cross-origin shareable.
   out.headers.set("Access-Control-Allow-Origin", req.headers.get("Origin") ?? "*");
   out.headers.append("Vary", "Origin");
   return out;
