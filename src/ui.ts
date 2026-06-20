@@ -15,7 +15,7 @@ export const ADMIN_HTML = `<!doctype html>
   section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
   section h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
   th { font-weight: 600; color: var(--muted); }
   tr:last-child td { border-bottom: none; }
   code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
@@ -27,7 +27,7 @@ export const ADMIN_HTML = `<!doctype html>
   form.grid { display: grid; gap: 10px; grid-template-columns: 120px 1fr; align-items: start; }
   form.grid label { color: var(--muted); padding-top: 7px; }
   input[type=text] { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); width: 100%; }
-  .url-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .url-cell { overflow-wrap: anywhere; word-break: break-word; }
   .url-cell a { color: var(--accent); text-decoration: none; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
