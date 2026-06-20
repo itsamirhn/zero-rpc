@@ -12,9 +12,10 @@ interface Route {
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 const HEADER_RE = /^[A-Za-z0-9-]+$/;
 const KEY_PREFIX = "route:";
+const COUNT_PREFIX = "count:";
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
 
@@ -39,7 +40,7 @@ export default {
       return handleRoutes(req, env, path);
     }
 
-    return proxy(req, env, url);
+    return proxy(req, env, url, ctx);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -56,13 +57,16 @@ function requireAccess(req: Request, url: URL): Response | null {
 
 // ---- reverse proxy -----------------------------------------------------------
 
-async function proxy(req: Request, env: Env, url: URL): Promise<Response> {
+async function proxy(req: Request, env: Env, url: URL, ctx: ExecutionContext): Promise<Response> {
   const slug = url.pathname.slice(1).split("/")[0];
   if (!slug) return new Response("not found", { status: 404 });
 
   const raw = await env.ROUTES.get(KEY_PREFIX + slug);
   if (!raw) return new Response("not found", { status: 404 });
   const route = parseRoute(raw);
+
+  // Best-effort usage counter; runs after the response so it never adds latency.
+  ctx.waitUntil(bumpCount(env, slug));
 
   // Preserve any path after the slug (e.g. /foo/bar -> upstream + /bar) and the query.
   const suffix = url.pathname.slice(1 + slug.length);
@@ -99,6 +103,17 @@ async function proxy(req: Request, env: Env, url: URL): Promise<Response> {
   return out;
 }
 
+async function bumpCount(env: Env, slug: string): Promise<void> {
+  // Read-modify-write: approximate under heavy concurrency, and KV caps writes at
+  // ~1/sec per key, so this is a usage indicator rather than an exact meter.
+  try {
+    const n = Number((await env.ROUTES.get(COUNT_PREFIX + slug)) ?? "0");
+    await env.ROUTES.put(COUNT_PREFIX + slug, String((Number.isFinite(n) ? n : 0) + 1));
+  } catch {
+    // ignore counter failures
+  }
+}
+
 function parseRoute(raw: string): Route {
   try {
     const o = JSON.parse(raw);
@@ -123,8 +138,12 @@ async function handleRoutes(req: Request, env: Env, path: string): Promise<Respo
       const { keys } = await env.ROUTES.list({ prefix: KEY_PREFIX });
       const routes = await Promise.all(
         keys.map(async (k) => {
-          const raw = (await env.ROUTES.get(k.name)) ?? "";
-          return { slug: k.name.slice(KEY_PREFIX.length), ...parseRoute(raw) };
+          const slug = k.name.slice(KEY_PREFIX.length);
+          const [raw, count] = await Promise.all([
+            env.ROUTES.get(k.name),
+            env.ROUTES.get(COUNT_PREFIX + slug),
+          ]);
+          return { slug, ...parseRoute(raw ?? ""), count: Number(count ?? "0") };
         }),
       );
       return json({ routes });
@@ -148,7 +167,10 @@ async function handleRoutes(req: Request, env: Env, path: string): Promise<Respo
   }
 
   if (req.method === "DELETE") {
-    await env.ROUTES.delete(KEY_PREFIX + slug);
+    await Promise.all([
+      env.ROUTES.delete(KEY_PREFIX + slug),
+      env.ROUTES.delete(COUNT_PREFIX + slug),
+    ]);
     return json({ deleted: true });
   }
 

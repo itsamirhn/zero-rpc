@@ -14,7 +14,7 @@ export const ADMIN_HTML = `<!doctype html>
   .sub { color: var(--muted); margin-bottom: 24px; }
   section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
   section h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
   th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { font-weight: 600; color: var(--muted); }
   tr:last-child td { border-bottom: none; }
@@ -27,7 +27,9 @@ export const ADMIN_HTML = `<!doctype html>
   form.grid { display: grid; gap: 10px; grid-template-columns: 120px 1fr; align-items: start; }
   form.grid label { color: var(--muted); padding-top: 7px; }
   input[type=text] { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); width: 100%; }
-  .url-cell { word-break: break-all; }
+  .url-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .url-cell a { color: var(--accent); text-decoration: none; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
   .row-actions { display: flex; gap: 6px; }
   .hrow { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -66,7 +68,11 @@ export const ADMIN_HTML = `<!doctype html>
     <h2>Routes</h2>
     <div id="routes-empty" class="empty" hidden>No routes yet.</div>
     <table id="routes-table" hidden>
-      <thead><tr><th>Public endpoint</th><th>Private upstream</th><th>Headers</th><th></th></tr></thead>
+      <colgroup>
+        <col style="width:26%" /><col style="width:32%" /><col style="width:13%" />
+        <col style="width:10%" /><col style="width:19%" />
+      </colgroup>
+      <thead><tr><th>Public endpoint</th><th>Private upstream</th><th>Headers</th><th class="num">Uses</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -91,6 +97,7 @@ async function api(path, opts = {}) {
 }
 
 let routes = [];
+let editingSlug = null; // slug currently loaded in the form, for rename detection
 
 function addHeaderRow(name = '', value = '') {
   const row = document.createElement('div');
@@ -115,6 +122,7 @@ function collectHeaders() {
 
 function resetForm() {
   $('#f-slug').value = ''; $('#f-upstream').value = ''; $('#headers').innerHTML = '';
+  editingSlug = null;
 }
 
 function render() {
@@ -127,9 +135,10 @@ function render() {
     const n = Object.keys(r.headers || {}).length;
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td class="mono url-cell"><a href="#" data-copy="' + esc(pub) + '">' + esc(pub) + '</a></td>' +
-      '<td class="mono url-cell">' + esc(r.upstream) + '</td>' +
+      '<td class="mono url-cell" title="' + esc(pub) + '"><a href="#" data-copy="' + esc(pub) + '">' + esc(pub) + '</a></td>' +
+      '<td class="mono url-cell" title="' + esc(r.upstream) + '">' + esc(r.upstream) + '</td>' +
       '<td>' + (n ? n + (n === 1 ? ' header' : ' headers') : '<span style="color:var(--muted)">-</span>') + '</td>' +
+      '<td class="num">' + (r.count || 0) + '</td>' +
       '<td class="row-actions"><button class="small" data-edit="' + esc(r.slug) + '">Edit</button>' +
       '<button class="danger small" data-del="' + esc(r.slug) + '">Delete</button></td>';
     tbody.appendChild(tr);
@@ -152,6 +161,7 @@ document.addEventListener('click', async (e) => {
     const r = routes.find(x => x.slug === t.dataset.edit);
     if (!r) return;
     resetForm();
+    editingSlug = r.slug;
     $('#f-slug').value = r.slug;
     $('#f-upstream').value = r.upstream;
     for (const [k, v] of Object.entries(r.headers || {})) addHeaderRow(k, v);
@@ -175,19 +185,32 @@ $('#route-form').addEventListener('submit', async (e) => {
   const slug = $('#f-slug').value.trim();
   const upstream = $('#f-upstream').value.trim();
   if (!slug || !upstream) { toast('Path and URL required'); return; }
+  const renaming = editingSlug && editingSlug !== slug;
   try {
     const saved = await api('/_routes/' + encodeURIComponent(slug), {
       method: 'PUT',
       body: JSON.stringify({ upstream, headers: collectHeaders() }),
     });
+    // Renaming = write the new path then drop the old key, so we don't leave an
+    // orphan (the original "edit adds a duplicate" bug).
+    if (renaming) {
+      await api('/_routes/' + encodeURIComponent(editingSlug), { method: 'DELETE' });
+      routes = routes.filter(x => x.slug !== editingSlug);
+    }
     // Update the list from the write response. KV list() is eventually consistent,
     // so re-fetching right after a write can return a stale (empty) list.
-    const entry = { slug: saved.slug, upstream: saved.upstream, headers: saved.headers || {} };
+    const prev = routes.find(x => x.slug === saved.slug);
+    const entry = {
+      slug: saved.slug,
+      upstream: saved.upstream,
+      headers: saved.headers || {},
+      count: renaming ? 0 : (prev ? prev.count : 0),
+    };
     const i = routes.findIndex(x => x.slug === entry.slug);
     if (i >= 0) routes[i] = entry; else routes.push(entry);
     render();
     resetForm();
-    toast('Saved');
+    toast(renaming ? 'Renamed' : 'Saved');
   } catch (err) { toast(err.message); }
 });
 
