@@ -31,7 +31,8 @@ export const ADMIN_HTML = `<!doctype html>
   .url-cell a { color: var(--accent); text-decoration: none; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
-  .row-actions { display: flex; gap: 6px; }
+  .row-actions { white-space: nowrap; }
+  .row-actions button + button { margin-left: 6px; }
   .hrow { display: flex; gap: 6px; margin-bottom: 6px; }
   .hrow .h-name { max-width: 220px; }
   .toast { position: fixed; bottom: 20px; right: 20px; background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; }
