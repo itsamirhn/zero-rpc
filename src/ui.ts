@@ -69,8 +69,8 @@ export const ADMIN_HTML = `<!doctype html>
     <div id="routes-empty" class="empty" hidden>No routes yet.</div>
     <table id="routes-table" hidden>
       <colgroup>
-        <col style="width:26%" /><col style="width:32%" /><col style="width:13%" />
-        <col style="width:10%" /><col style="width:19%" />
+        <col style="width:16%" /><col style="width:42%" /><col style="width:12%" />
+        <col style="width:9%" /><col style="width:21%" />
       </colgroup>
       <thead><tr><th>Public endpoint</th><th>Private upstream</th><th>Headers</th><th class="num">Uses</th><th></th></tr></thead>
       <tbody></tbody>
@@ -135,7 +135,7 @@ function render() {
     const n = Object.keys(r.headers || {}).length;
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td class="mono url-cell" title="' + esc(pub) + '"><a href="#" data-copy="' + esc(pub) + '">' + esc(pub) + '</a></td>' +
+      '<td class="mono" title="' + esc(pub) + '"><a href="#" data-copy="' + esc(pub) + '">/' + esc(r.slug) + '</a></td>' +
       '<td class="mono url-cell" title="' + esc(r.upstream) + '">' + esc(r.upstream) + '</td>' +
       '<td>' + (n ? n + (n === 1 ? ' header' : ' headers') : '<span style="color:var(--muted)">-</span>') + '</td>' +
       '<td class="num">' + (r.count || 0) + '</td>' +
